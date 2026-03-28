@@ -25,7 +25,6 @@ public class Esame{
     public boolean getSuperato(){
         return this.superato;
     }
-    
     public void setNome(String nome){
         this.nome=nome;
     }
