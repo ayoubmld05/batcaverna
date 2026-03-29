@@ -14,6 +14,14 @@ public class Studente{
         this.cfuTriennale=180;
         this.libretto=new ArrayList<>();
     }
+    public boolean superato(Esame esame){
+        for(Esame esameInLibretto : this.libretto){
+            if(esameInLibretto.getNome().equals(esame.getNome()) && esameInLibretto.getSuperato()==true){
+                return true;
+            }
+        }   
+        return false;
+    }
     public String getNome(){
         return this.nome;
     }
@@ -27,7 +35,7 @@ public class Studente{
        int cfuTotali=0;
        for(Esame curr:this.libretto){
          if(curr.getSuperato()){
-        cfuTotali+=curr.getCfu();
+            cfuTotali+=curr.getCfu();
          }
        }
        this.cfuOttenuti=cfuTotali;
@@ -62,8 +70,20 @@ public class Studente{
     public void setCognome(String cognome){
         this.cognome=cognome;
     }
-    // Metodo per registrare un esame superato nel libretto
-    public void aggiungiEsame(Esame esame) {
+ 
+    public void aggiungiEsameSuperato(Esame esame) {
         this.libretto.add(esame);
     }
+    public boolean possoFarlo(Esame esame){
+        if (esame.getPropedeutici() == null || esame.getPropedeutici().isEmpty()) {
+            return true;
+        }
+        for( Esame curr : esame.getPropedeutici()){
+            if(this.superato(curr)==false){
+                return false;
+            }
+        }
+        return true;
+    }
+    
 }
