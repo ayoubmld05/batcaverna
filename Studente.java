@@ -74,6 +74,55 @@ public class Studente{
     public void aggiungiEsameSuperato(Esame esame) {
         this.libretto.add(esame);
     }
+    public void valutaRischio(Esame esame){
+        int somma=0;
+        int sommaCfu=0;
+        int media=0;
+        int votoPiuBasso=31;
+        String nomeDelpiuBasso= "";
+        int votoPiuAlto=0;
+        String nomeDelpiuAlto="";
+        Esame basso=null;
+        Esame alto=null;
+        //so già che posso farlo...perchè chiamo alla fine il 
+        if(esame.getNumeroPropedeutici()==0){
+            System.out.println("Nessun rischio: non ci sono esami propedeutici.");
+        }else{
+            for(Esame curr:esame.getPropedeutici()){
+            if(curr.getVoto()<=votoPiuBasso){
+                basso=curr;
+                votoPiuBasso=curr.getVoto();
+                nomeDelpiuBasso=curr.getNome();
+            }
+            if(curr.getVoto()>votoPiuAlto){
+                alto=curr;
+                votoPiuAlto=curr.getVoto();
+                nomeDelpiuAlto=curr.getNome();
+            }
+             somma+=curr.getVoto()*curr.getCfu();
+             sommaCfu+=curr.getCfu();
+        }   
+         media=somma/sommaCfu;
+        System.out.println("La media dei tuoi esami propedeutici è" + " "+media );
+        System.out.println("Il voto più basso che hai preso tra i tuoi propedeutici è" +" "+nomeDelpiuBasso + " "+votoPiuBasso);
+        System.out.println("Il voto più alto che hai preso tra i tuoi propedeutici è" +" "+nomeDelpiuAlto +" "+ votoPiuAlto);
+        if(votoPiuBasso >= 22){
+            System.out.println("Non c'è tantissimo da preoccuparti... bisogna rivedere soltanto questi argomenti:");
+        } else {
+            System.out.println("Allarme rosso! Abbiamo bisogno di recuperare al meglio questi argomenti:");
+        }
+        
+        // Controllo di sicurezza: stampiamo solo se 'basso' esiste e ha degli argomenti
+        if(basso != null && !basso.getArgomenti().isEmpty()) {
+            for(Argomento ciao : basso.getArgomenti()){
+                System.out.println("- " + ciao.getNome() + ": " + ciao.getDescrizione()); // Ho aggiunto anche la descrizione!
+            }
+        }
+        }
+        
+       
+
+    }
     public boolean possoFarlo(Esame esame){
         if (esame.getPropedeutici() == null || esame.getPropedeutici().isEmpty()) {
             return true;
@@ -83,6 +132,7 @@ public class Studente{
                 return false;
             }
         }
+        this.valutaRischio(esame);
         return true;
     }
     

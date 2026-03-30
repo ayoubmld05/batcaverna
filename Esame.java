@@ -18,6 +18,9 @@ public class Esame{
     public String getNome(){
         return this.nome;
     }
+    public int getNumeroPropedeutici() {
+        return this.propedeutici.size(); // Ti restituisce direttamente il numero di elementi!
+    }
     public int getCfu(){
         return this.cfu;
     }
@@ -48,5 +51,8 @@ public class Esame{
     }
     public List<Esame> getPropedeutici(){
         return this.propedeutici;
+    }
+    public List<Argomento> getArgomenti(){
+        return this.argomenti;
     }
 }

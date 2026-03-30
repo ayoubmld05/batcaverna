@@ -18,15 +18,19 @@ public class Main{
         programmazione1.setVoto(27);
         utente.aggiungiEsameSuperato(architettura);
         utente.aggiungiEsameSuperato(programmazione1);
+        Argomento mem=new Argomento("Gestione della memoria", "Gerarchia delle memorie e Cache");
+        Argomento cpu=new Argomento("Pipeline della CPU","Esecuzione delle istruzioni e hazard");
+        architettura.aggiungiArgomento(mem);
+        architettura.aggiungiArgomento(cpu);
         if(utente.possoFarlo(sistemiOperativi)){
             System.out.println("Ottimo puoi fare"+ sistemiOperativi.getNome());
         }else{
-            System.out.println("Mi dispiace non puoi farlo" + sistemiOperativi.getNome(), "ti mancano dei propedeutici");
+            System.out.println("Mi dispiace non puoi farlo" + sistemiOperativi.getNome()+ ",ti mancano dei propedeutici");
         }
         System.out.println("Aggiornamento libretto");
         System.out.println("Cfu contenuti in questo momento" + utente.getcfuOttenuti());
         System.out.println("CFU Mancanti per la Triennale: " + utente.getcfuMancanti());
         System.out.println("Media Attuale: " + utente.getMedia());
-
+        
     }
 }
