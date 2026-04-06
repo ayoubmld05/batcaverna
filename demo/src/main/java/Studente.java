@@ -74,35 +74,45 @@ public class Studente{
     public void aggiungiEsameSuperato(Esame esame) {
         this.libretto.add(esame);
     }
-    public void valutaRischio(Esame esame){
+    public void valutaRischio(Esame esame,DatabaseManager db){
         int somma=0;
         int sommaCfu=0;
-        int media=0;
         int votoPiuBasso=31;
         String nomeDelpiuBasso= "";
         int votoPiuAlto=0;
         String nomeDelpiuAlto="";
         Esame basso=null;
         Esame alto=null;
-        //so già che posso farlo...perchè chiamo alla fine il 
-        if(esame.getNumeroPropedeutici()==0){
-            System.out.println("Nessun rischio: non ci sono esami propedeutici.");
-        }else{
-            for(Esame curr:esame.getPropedeutici()){
-            if(curr.getVoto()<=votoPiuBasso){
-                basso=curr;
-                votoPiuBasso=curr.getVoto();
-                nomeDelpiuBasso=curr.getNome();
-            }
-            if(curr.getVoto()>votoPiuAlto){
-                alto=curr;
-                votoPiuAlto=curr.getVoto();
-                nomeDelpiuAlto=curr.getNome();
-            }
-             somma+=curr.getVoto()*curr.getCfu();
-             sommaCfu+=curr.getCfu();
+      List <Esame> listaProp=db.verifica_propedeutici(esame.getNome());
+      if(listaProp.size()==0){
+        System.out.println("Nessun rischio: non ci sono esami propedeutici.");
+      }else{
+        for(Esame esameCorrente:listaProp){
+               Esame curr=db.superato_propedeutico(esameCorrente.getNome(), this.getNome());
+               if(curr!=null){
+                if(curr.getVoto()<=votoPiuBasso){
+                    basso=curr;
+                    votoPiuBasso=curr.getVoto();
+                    nomeDelpiuBasso=curr.getNome();
+                }
+                if(curr.getVoto()>votoPiuAlto){
+                    alto=curr;
+                    votoPiuAlto=curr.getVoto();
+                    nomeDelpiuAlto=curr.getNome();
+                }
+                 somma+=curr.getVoto()*curr.getCfu();
+                 sommaCfu+=curr.getCfu();
+               }else{
+                System.out.println("Non hai superato l'esame"+ esameCorrente.getNome());
+               }
+               
         }   
-         media=somma/sommaCfu;
+        if (sommaCfu > 0) {
+            float media = (float) somma / sommaCfu;
+            System.out.println("La media dei tuoi esami propedeutici è " + media);
+        } else {
+            System.out.println("Non hai superato nessun esame propedeutico per fare media.");
+        }
         System.out.println("La media dei tuoi esami propedeutici è" + " "+media );
         System.out.println("Il voto più basso che hai preso tra i tuoi propedeutici è" +" "+nomeDelpiuBasso + " "+votoPiuBasso);
         System.out.println("Il voto più alto che hai preso tra i tuoi propedeutici è" +" "+nomeDelpiuAlto +" "+ votoPiuAlto);
@@ -110,20 +120,27 @@ public class Studente{
             System.out.println("Non c'è tantissimo da preoccuparti... bisogna rivedere soltanto questi argomenti:");
         } else {
             System.out.println("Allarme rosso! Abbiamo bisogno di recuperare al meglio questi argomenti:");
-        }
-        
-        // Controllo di sicurezza: stampiamo solo se 'basso' esiste e ha degli argomenti
-        if(basso != null && !basso.getArgomenti().isEmpty()) {
-            for(Argomento ciao : basso.getArgomenti()){
-                System.out.println("- " + ciao.getNome() + ": " + ciao.getDescrizione()); // Ho aggiunto anche la descrizione!
+            //chiamo gli argomenti dell più basso
+            if(basso!=null ){       
+                List <Argomento> arg=db.haArgomenti(basso.getNome());
+                int count=arg.size();
+                for(Argomento curr:arg){
+                    System.out.println("Bisogna ripassare"+curr.getNome());
+                    if(count>1){
+                        System.out.println("Anche...");
+                    }
+                    count--;
+                }
             }
         }
-        }
         
-       
-
-    }
-    public boolean possoFarlo(Esame esame){
+        }
+      }
+      
+    
+   
+    
+    public boolean possoFarlo(Esame esame,DatabaseManager db){
         if (esame.getPropedeutici() == null || esame.getPropedeutici().isEmpty()) {
             return true;
         }
@@ -132,8 +149,8 @@ public class Studente{
                 return false;
             }
         }
-        this.valutaRischio(esame);
+        this.valutaRischio(esame,db);
         return true;
     }
-    
 }
+    
