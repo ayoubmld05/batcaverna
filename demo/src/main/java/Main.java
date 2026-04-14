@@ -15,7 +15,7 @@ public class Main {
             System.out.println("\n--- LOGIN STUDENTE ---");
             System.out.print("Nome: ");
             String nome = scanner.nextLine();
-            System.out.print("Cognome: ");
+            System.out.print("Cognome: "); 
             String cognome = scanner.nextLine();
             
             Studente utenteLoggato = db.login_Studente(nome, cognome);
@@ -27,7 +27,7 @@ public class Main {
                 String esameScelto = scanner.nextLine();
                 
                 // Creiamo la "scatola" dell'esame scelto
-                Esame esameDaFare = new Esame(esameScelto, 0, 0, false);
+                Esame esameDaFare = new Esame(esameScelto, 0, 0, false,0.0f);
                 
                 System.out.println("\n🔎 Avvio scansione predittiva sul Grafo...");
                 // QUI AVVIENE LA MAGIA! Passiamo l'esame e il db!

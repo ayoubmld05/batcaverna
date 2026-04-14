@@ -62,13 +62,14 @@ public class DatabaseManager implements AutoCloseable {
     public List <Esame> verifica_propedeutici(String nomeEsame){
         List<Esame> prop=new ArrayList<>();
         try(Session session=driver.session()){
-            String query="MATCH (p:Esame)-[:PROPEDEUTICO]->(e:Esame {nome: $nome}) RETURN p.nome AS EsamePropedeutico, p.cfu as cfuProp";
+            String query = "MATCH (p:Esame)-[:PROPEDEUTICO]->(e:Esame {nome: $nome}) RETURN p.nome AS EsamePropedeutico, p.cfu as cfuProp, p.tasso_mortalita AS rischioMortalita";           
             Result result=session.run(query,Values.parameters("nome",nomeEsame));
             while(result.hasNext()){
                 Record record = result.next();
                 String nomeTrovato=record.get("EsamePropedeutico").asString();
                 int cfuTrovati=record.get("cfuProp").asInt();
-                Esame trovato=new Esame(nomeTrovato, cfuTrovati,0,false);
+                float rischio = record.get("rischioMortalita").asFloat(0.0f);
+                Esame trovato = new Esame(nomeTrovato, cfuTrovati, 0, false, rischio);
                 prop.add(trovato);
             }
             return prop;
@@ -79,14 +80,15 @@ public class DatabaseManager implements AutoCloseable {
         }  
         public Esame superato_propedeutico(String nomeEsame, String nomeStudente){
             try(Session session=driver.session()){
-                String query="MATCH (s:Studente{nome:$nomeStudente})-[ass:HA_SUPERATO]->(e:Esame{nome: $nomeEsame}) RETURN e.nome as nomeProp, e.cfu as cfuProp,ass.voto as votoPreso ";
+                String query="MATCH (s:Studente{nome:$nomeStudente})-[ass:HA_SUPERATO]->(e:Esame{nome: $nomeEsame}) RETURN e.nome as nomeProp, e.cfu as cfuProp,ass.voto as votoPreso, e.tasso_mortalita AS rischioMortalita";
                 Result result=session.run(query,Values.parameters("nomeStudente",nomeStudente,"nomeEsame",nomeEsame)); 
                 if(result.hasNext()){   
                     Record record=result.next();
                     String nomeTrovato=record.get("nomeProp").asString();
                     int votoTrovato=record.get("votoPreso").asInt();
                     int cfu=record.get("cfuProp").asInt();
-                    Esame prop=new Esame(nomeTrovato,cfu ,votoTrovato,true); 
+                    float tasso_mortalita=record.get("rischioMortalita").asFloat();
+                    Esame prop=new Esame(nomeTrovato,cfu ,votoTrovato,true,tasso_mortalita); 
                     return prop;
                 }
             }

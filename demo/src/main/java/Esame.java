@@ -7,16 +7,21 @@ public class Esame{
     private boolean superato;
     private List <Argomento> argomenti;
     private List <Esame> propedeutici; 
-    public Esame(String nome, int cfu, int voto, boolean superato){
+    private float tassoMortalita=0.0f;
+    public Esame(String nome, int cfu, int voto, boolean superato,float tassoMortalita){
         this.nome=nome;
         this.cfu=cfu;
         this.voto=voto;
         this.superato=superato;
         this.argomenti=new ArrayList<>(); 
         this.propedeutici=new ArrayList <>();
+        this.tassoMortalita=tassoMortalita;
     }
     public String getNome(){
         return this.nome;
+    }
+    public float getTassoMortalita() {
+        return tassoMortalita;
     }
     public int getNumeroPropedeutici() {
         return this.propedeutici.size(); // Ti restituisce direttamente il numero di elementi!
