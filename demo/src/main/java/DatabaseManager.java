@@ -112,6 +112,70 @@ public class DatabaseManager implements AutoCloseable {
             }  
                 return null; 
             }
+           public Test registraEsitoTest(int esito,String nomeStudente,String ID_test){
+            try(Session session=driver.session()){
+                String query=
+                "MATCH (s:Studente {nome: $nomeStudente}) " +
+                "MATCH (t:Test {id: $idTest})-[:VALUTA]->(a:Argomento) " +
+                // 1. Registriamo sempre lo svolgimento
+                "MERGE (s)-[r:HA_SVOLTO]->(t) " +
+                "SET r.punteggio = $esito, r.data = date() " +
+                // 2. Usiamo FOREACH come un "if" per creare la lacuna solo se necessario
+                // Senza interrompere il RETURN finale
+                "FOREACH (_ IN CASE WHEN $esito < t.soglia_superamento THEN [1] ELSE [] END | " +
+                "  MERGE (s)-[:HA_LACUNA_IN {gravità: 'alta'}]->(a) " +
+                ") " +
+                "RETURN t.id AS id, t.titolo AS titolo, t.num_domande AS n_domande, t.soglia_superamento AS soglia";
+                Result result=session.run(query,Values.parameters("nomeStudente",nomeStudente, "idTest",ID_test,"esito", esito));
+                if(result.hasNext()){
+                    Record record=result.next();
+                    String ID=record.get("id").asString();
+                    String titolo=record.get("titolo").asString();
+                    int num_domande=record.get("n_domande").asInt();
+                    int soglia=record.get("soglia").asInt();
+                    Test test=new Test(ID,titolo,num_domande,soglia);
+                    return test;
+                }
+            }catch(Exception e) {
+                System.err.println("Errore DB: " + e.getMessage());
+            }
+            return null;
+           }
+
+           public List <Test> haTest(String nomeEsame){
+            List <Test> test=new ArrayList<>();
+            try(Session session=driver.session()){
+                String query="MATCH(e:Esame{nome:$nomeEsame}-[:HA_TEST_DI_PROVA]->(t:Test) RETURN t.titolo as nomeT, t.ID ad tId, t.domande as tDom, t.soglia_superamento as tSoglia)";
+                Result result=session.run(query,Values.parameters("nomeEsame",nomeEsame));
+                while(result.hasNext()){
+                    Record record=result.next();
+                    String nomeTest=record.get("nomeT").asString();
+                    String idTest=record.get("tId").asString();
+                    int domandeTest=record.get("tDom").asInt();
+                    int sogliaTest=record.get("tSoglia").asInt();
+                    Test nuovo=new Test(idTest,nomeTest,domandeTest,sogliaTest);
+                    test.add(nuovo);
+                }
+                return test;
+            }catch(Exception e) {
+                System.err.println("Errore DB: " + e.getMessage());
+            }
+            return null;
+           }
+           public int haSuperatoTest(String nomeStudente, String nomeTest){
+            try(Session session=driver.session()){
+            String query="MATCH (s:Studente{nome:$nomeStudente}-[v:HA_SVOLTO]->(t:Test {titolo:$nomeTest}) RETURN v.punteggio as votoOttenuto";
+            Result result=session.run(query,Values.parameters("nomeStudente",nomeStudente,"nomeTest",nomeTest));
+            if(result.hasNext()){
+                Record record=result.next();
+                int punteggio=record.get("votoOttenuto").asInt();
+                return punteggio;
+            }
+            }catch(Exception e) {
+                System.err.println("Errore DB: " + e.getMessage());
+            }
+            return 0;
+           }
            
         }
     

@@ -31,7 +31,7 @@ public class Main {
                 
                 System.out.println("\n🔎 Avvio scansione predittiva sul Grafo...");
                 // QUI AVVIENE LA MAGIA! Passiamo l'esame e il db!
-                utenteLoggato.valutaRischio(esameDaFare, db);
+                utenteLoggato.valutaRischio(esameDaFare, db,nome);
                 
             } else {
                 System.out.println("\n❌ Nessuno studente trovato. Riprova.");
