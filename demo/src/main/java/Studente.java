@@ -79,14 +79,14 @@ public class Studente{
         List <Test> listaTest=db.haTest(esame.getNome());
         for(Test curr : listaTest){
             int esito=db.haSuperatoTest(nomeStudente,curr.getTitolo());
-            if(esito>curr.getSoglia_superamento()){
+            if(esito==0){
+                System.out.println("Non hai ancora affrontato il test: " + curr.getTitolo());
+            }else if(esito>curr.getSoglia_superamento()){
                 System.out.println("Ottimo, hai superato il test "+ curr.getTitolo() + " nella parte dell'esame di "+ " "+ esame.getNome() + "con un ottimo voto, " + esito);
             }else{
                 System.out.println("Caspita, controllando i test dell'esame "+ " "+ esame.getNome()+" " + "il test"+ curr.getTitolo() + " " + "non è andato benissimo...infatti hai preso " + esito + " "+ "mentre la soglia minima era di " + curr.getSoglia_superamento());
             }
         }
-        float rischioMassimo=0.0f;
-        Esame esamePiuRischioso=null;
         if(listaProp.size()==0){
             System.out.println("Nessun rischio: non ci sono esami propedeutici.");
         }else{
@@ -102,48 +102,19 @@ public class Studente{
                         System.out.println("Caspita, negli esemi propedeutici, controllando i test dell'esame "+ " "+ esame.getNome()+" " + "il test"+ curr2.getTitolo() + " " + "non è andato benissimo...infatti hai preso " + esito + " "+ "mentre la soglia minima era di " + curr2.getSoglia_superamento());
                     }
                 }
-               if(curr!=null){
-                int lacuna=30-curr.getVoto();
-                float rischioAttuale=lacuna*curr.getTassoMortalita();
-                System.out.println("-> Esame: " + curr.getNome() + " | Voto: " + curr.getVoto() + 
-                                   " | Mortalità: " + curr.getTassoMortalita() + 
-                                   " => INDICE RISCHIO: " + rischioAttuale);
-                if(rischioMassimo<rischioAttuale){
-                    rischioMassimo=rischioAttuale;
-                    esamePiuRischioso=curr;
-                }
-               }else{
-                System.out.println("Non si è superato l'esame prepedeuticio "+ curr.getNome());
-                return;
-               }
             }
-            //vuoi fare un esame...controllo se hai fatto i test su di esso
-            float allarme = 5.0f; //ma non posso..fa ridere già così che io metta una regola fissa come soglia d'allarme
-            if(rischioMassimo<allarme){
-                System.out.println("Non c'è nulla di cui preoccuparsi...infatti il tuo rischio massimo è di appena "+rischioMassimo+" mentre la soglia è "+allarme);
-                System.out.println("Le tue basi sono solide...buono studio per l'esame " +esame.getNome());
-            }else{
-                System.out.println("Il Rischio purtroppo è piuttosto  alto (" + rischioMassimo + ") derivante dalle tue lacune in: " + esamePiuRischioso.getNome());
-                System.out.println("Prima di tentare " + esame.getNome() + ",  ti consiglio di ripassare questi argomenti chiave:");
-                List <Argomento> argomentiDellEsame=db.haArgomenti(esamePiuRischioso.getNome());
-                List <Test> listaTest3=new ArrayList<>();
-                listaTest3=db.haTest(esamePiuRischioso.getNome());
-                for(Test curr:listaTest3){
-                    int esito=db.haSuperatoTest(nomeStudente, curr.getTitolo());
-                    if(esito>curr.getSoglia_superamento()){
-                        System.out.println("Ottimo, negli esemi propedeutici, quello con il voto più basso...,"+ " "+esamePiuRischioso.getNome() + " "  +"lo hai superato..."  +   "con un ottimo voto, " + esito);
-                    }else{ 
-                        System.out.println("Caspita, negli esemi propedeutici, cquello con il voto più basso...,"+ " "+esamePiuRischioso.getNome() +" " + "il test"+ curr.getTitolo() + " " + "non è andato benissimo...infatti hai preso " + esito + " "+ "mentre la soglia minima era di " + curr.getSoglia_superamento());
-                    }
+            List <Argomento> listaArgomentoConLacune= db.contaLacuneAttive(nomeStudente, esame.getNome());
+            int numeroLacune =listaArgomentoConLacune.size();
+            float rischioReale = numeroLacune * esame.getTassoMortalita(); // Es: 3 lacune * 0.8 mortalità = 2.4 rischio
+            if(rischioReale > 2.0f) { // Ora la soglia ha un senso statistico!
+                System.out.println("Attenzione, Hai " + numeroLacune + " lacune gravi su questo esame");
+                System.out.println("Più precisamente, tra le lacune abbiamo:");
+                for(Argomento arg:listaArgomentoConLacune){
+                    System.out.println("Argomento:" + arg.getNome());
                 }
-                if(argomentiDellEsame!=null && !argomentiDellEsame.isEmpty()){
-                    for(Argomento curr:argomentiDellEsame){
-                        System.out.println("Devi ripassare" + curr.getNome() + " " + curr.getDescrizione());
-                    }
-                }else{
-                    System.out.println("Nessun argomento specifico trovato");
-                }
-            }
+            } else {
+                System.out.println("Ottimo, Rischio calcolato a " + rischioReale + ". Puoi procedere.");
+            }            
         }
     }
       

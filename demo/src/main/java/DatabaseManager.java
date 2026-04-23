@@ -145,7 +145,7 @@ public class DatabaseManager implements AutoCloseable {
            public List <Test> haTest(String nomeEsame){
             List <Test> test=new ArrayList<>();
             try(Session session=driver.session()){
-                String query="MATCH(e:Esame{nome:$nomeEsame}-[:HA_TEST_DI_PROVA]->(t:Test) RETURN t.titolo as nomeT, t.ID ad tId, t.domande as tDom, t.soglia_superamento as tSoglia)";
+                String query="MATCH(e:Esame{nome:$nomeEsame})-[:HA_TEST_DI_PROVA]->(t:Test) RETURN t.titolo as nomeT, t.ID as tId, t.domande as tDom, t.soglia_superamento as tSoglia";
                 Result result=session.run(query,Values.parameters("nomeEsame",nomeEsame));
                 while(result.hasNext()){
                     Record record=result.next();
@@ -164,7 +164,7 @@ public class DatabaseManager implements AutoCloseable {
            }
            public int haSuperatoTest(String nomeStudente, String nomeTest){
             try(Session session=driver.session()){
-            String query="MATCH (s:Studente{nome:$nomeStudente}-[v:HA_SVOLTO]->(t:Test {titolo:$nomeTest}) RETURN v.punteggio as votoOttenuto";
+            String query="MATCH (s:Studente{nome:$nomeStudente})-[v:HA_SVOLTO]->(t:Test {titolo:$nomeTest}) RETURN v.punteggio as votoOttenuto";
             Result result=session.run(query,Values.parameters("nomeStudente",nomeStudente,"nomeTest",nomeTest));
             if(result.hasNext()){
                 Record record=result.next();
@@ -176,7 +176,23 @@ public class DatabaseManager implements AutoCloseable {
             }
             return 0;
            }
-           
+           List <Argomento> contaLacuneAttive(String nomeStudente, String nomeEsame){
+                List <Argomento> listaArgomenti=new ArrayList<>();
+                try(Session session=driver.session()){
+                    String query="MATCH (s:Studente{nome:$nomeStudente})-[:HA_LACUNA_IN]->(a:Argomento)<-[:HA_ARGOMENTI]-(e:Esame{nome:$nomeEsame}) RETURN a.nome as nomeArg, a.descrizione as descArg";
+                    Result result=session.run(query,Values.parameters("nomeStudente",nomeStudente, "nomeEsame",nomeEsame));
+                    while(result.hasNext()){
+                        Record record=result.next();
+                        String nomeArgomento=record.get("nomeArg").asString();
+                        String descrizioneArgomento=record.get("descArg").asString();
+                        Argomento nuovo=new Argomento(nomeArgomento, descrizioneArgomento);
+                        listaArgomenti.add(nuovo);   
+                    }
+                    return listaArgomenti;     
+                }catch(Exception e) {
+                System.err.println("Errore DB: " + e.getMessage());
+            }
+            return null;
+           }
         }
-    
 
