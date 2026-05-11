@@ -1,12 +1,12 @@
 public class Argomento {
     private String nome;
     private String descrizione;
-
+    private Test test_associato; 
     public Argomento(String nome, String descrizione) {
         this.nome = nome;
         this.descrizione = descrizione;
     }
-
+    public Test getTestAssociato() { return this.test_associato; }
     public String getNome() { return this.nome; }
     public String getDescrizione() { return this.descrizione; }
 

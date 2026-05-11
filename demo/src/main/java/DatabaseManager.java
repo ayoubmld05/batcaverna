@@ -6,6 +6,7 @@ import org.neo4j.driver.AuthTokens;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.GraphDatabase;
 import org.neo4j.driver.Session;
+import org.neo4j.driver.Value;
 import org.neo4j.driver.Result;
 import org.neo4j.driver.Record;
 import org.neo4j.driver.Values; 
@@ -176,7 +177,7 @@ public class DatabaseManager implements AutoCloseable {
             }
             return 0;
            }
-           List <Argomento> contaLacuneAttive(String nomeStudente, String nomeEsame){
+         public  List <Argomento> contaLacuneAttive(String nomeStudente, String nomeEsame){
                 List <Argomento> listaArgomenti=new ArrayList<>();
                 try(Session session=driver.session()){
                     String query="MATCH (s:Studente{nome:$nomeStudente})-[:HA_LACUNA_IN]->(a:Argomento)<-[:HA_ARGOMENTI]-(e:Esame{nome:$nomeEsame}) RETURN a.nome as nomeArg, a.descrizione as descArg";
@@ -194,5 +195,82 @@ public class DatabaseManager implements AutoCloseable {
             }
             return null;
            }
+           // si occupi di prendere l'esame, il test e l'argomento e creare la struttura nel grafo
+        public void creazioneTestPerArgomento(String nomeEsame, Test test, Argomento argomento){
+            String query = "MERGE (e:Esame{nome:$nomeEsame}) " +  // <-- nota lo spazio finale
+                        "MERGE (t:Test{id:$idTest}) " + 
+                        "MERGE (a:Argomento{nome:$nomeArgomento}) " +
+                        "SET a.descrizione = $descrizione " +
+                        "SET t.titolo = $titoloTest, t.num_domande = $numDomande, t.soglia_superamento = $soglia " +
+                        "MERGE (e)-[:CONTIENE_ARGOMENTO]->(a) " +
+                        "MERGE (a)-[:HA_TEST_DI_PROVA]->(t)";
+                        
+                try(Session session = driver.session()) {
+                session.run(query, Values.parameters(
+                    "nomeEsame", nomeEsame,
+                    "nomeArgomento", argomento.getNome(),
+                    "descrizione", argomento.getDescrizione(),
+                    "titoloTest", test.getTitolo(),
+                    "idTest", test.getID(),
+                    "numDomande", test.getNum_domande(),
+                    "soglia", test.getSoglia_superamento()
+                ));
+            } catch(Exception e) {
+                System.err.println("Errore DB in creazioneTest: " + e.getMessage());
+            }
+        }
+        public double getMediaStudente(String nomeStudente){
+            int count=0;
+            double media=0;
+            try(Session session=driver.session()){
+                String query="MERGE (s:Studente{nome:$nomeStudente})-[a:HA_SUPERATO]->(e:Esame) RETURN a.voto AS votoEsame";
+                Result result=session.run(query, Values.parameters("nomeStudente", nomeStudente));
+                while(result.hasNext()){
+                    count++;
+                    Record record=result.next();
+                    media=record.get("votoEsame").asDouble();
+                }
+            }catch(Exception e) {
+                System.err.println("Errore DB in creazioneTest: " + e.getMessage());
+            }
+            return media/count;
+        }
+        public int getCfuStudente(String nomeStudente){
+            int cfu=0;
+            try(Session session=driver.session()){
+                String query="MERGE (s:Studente{nome:$nomeStudente})-[HA_SUPERATO]->(e:Esame) RETURN e.cfu as cfuEsame";
+                Result result=session.run(query,Values.parameters("nomeStudente",nomeStudente));
+                while(result.hasNext()){
+                    Record record=result.next();
+                    cfu+=record.get("cfuEsame").asInt();
+                }
+            }catch(Exception e) {
+                System.err.println("Errore DB in creazioneTest: " + e.getMessage());
+            }
+            return cfu;
+        }
+        
+        public List <Esame> getListaEsamiNonSuperati(String nomeStudente){
+            List <Esame> lista=new ArrayList<>();
+            try(Session session=driver.session()){
+                String query="MERGE (s:Studente{nome:$nomeStudente}) -[v:HA_FALLITO]->(e:Esame) WHERE v.voto<18 RETURN e.nome AS nEsame, e.descrizione AS dEsame, e.tasso_mortalita AS tEsame, e.cfu AS cEsame, v.voto AS vEsame ";
+                Result result=session.run(query,Values.parameters("nomeStudente",nomeStudente));
+                while(result.hasNext()){
+                    Record record=result.next();
+                    String nomeEsame=record.get("nEsame").asString();
+                    String descrizioneEsame=record.get("dEsame").asString();
+                    int tasso_mortalitaEsame=record.get("tEsame").asInt();
+                    int cfuEsame=record.get("cEsame").asInt();
+                    int votoEsame=record.get("vEsame").asInt();
+                    Esame nuovo=new Esame(nomeEsame,cfuEsame,votoEsame,false,tasso_mortalitaEsame);
+                    lista.add(nuovo);
+                }
+            }catch(Exception e) {
+                System.err.println("Errore DB in creazioneTest: " + e.getMessage());
+            }
+            return lista;
+        }
+        
+        
         }
 
