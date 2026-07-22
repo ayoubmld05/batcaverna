@@ -8,11 +8,16 @@ public class Studente{
     private int cfuOttenuti;
     private int cfuMancanti;
     private int cfuTriennale;
-    public Studente(String nome,String cognome){
+    private String matricola;
+    public Studente(String nome,String cognome,String matricola){
         this.nome=nome;
         this.cognome=cognome;
         this.cfuTriennale=180;
         this.libretto=new ArrayList<>();
+        this.matricola=matricola;
+    }
+    public String getMatricola() {
+        return this.matricola;
     }
     public boolean superato(Esame esame){
         for(Esame esameInLibretto : this.libretto){
@@ -74,52 +79,29 @@ public class Studente{
     public void aggiungiEsameSuperato(Esame esame) {
         this.libretto.add(esame);
     }
-    public void valutaRischio(Esame esame, DatabaseManager db,String nomeStudente){
-        List <Esame> listaProp=db.verifica_propedeutici(esame.getNome());
-        List <Test> listaTest=db.haTest(esame.getNome());
-        for(Test curr : listaTest){
-            int esito=db.haSuperatoTest(nomeStudente,curr.getTitolo());
-            if(esito==0){
-                System.out.println("Non hai ancora affrontato il test: " + curr.getTitolo());
-            }else if(esito>curr.getSoglia_superamento()){
-                System.out.println("Ottimo, hai superato il test "+ curr.getTitolo() + " nella parte dell'esame di "+ " "+ esame.getNome() + "con un ottimo voto, " + esito);
-            }else{
-                System.out.println("Caspita, controllando i test dell'esame "+ " "+ esame.getNome()+" " + "il test"+ curr.getTitolo() + " " + "non è andato benissimo...infatti hai preso " + esito + " "+ "mentre la soglia minima era di " + curr.getSoglia_superamento());
-            }
-        }
-        if(listaProp.size()==0){
-            System.out.println("Nessun rischio: non ci sono esami propedeutici.");
-        }else{
-            for(Esame esameCorrente:listaProp){
-               Esame curr=db.superato_propedeutico(esame.getNome(), this.getNome());
-               List <Test> listaTest2=new ArrayList<>();
-                listaTest2=db.haTest(curr.getNome());
-                for(Test curr2:listaTest2){
-                    int esito=db.haSuperatoTest(nomeStudente, curr2.getTitolo());
-                    if(esito>curr2.getSoglia_superamento()){
-                        System.out.println("Ottimo, negli esemi propedeutici, hai superato il test "+ curr2.getTitolo() + " nella parte dell'esame di "+ " "+ esame.getNome() + "con un ottimo voto, " + esito);
-                    }else{
-                        System.out.println("Caspita, negli esemi propedeutici, controllando i test dell'esame "+ " "+ esame.getNome()+" " + "il test"+ curr2.getTitolo() + " " + "non è andato benissimo...infatti hai preso " + esito + " "+ "mentre la soglia minima era di " + curr2.getSoglia_superamento());
-                    }
-                }
-            }
-            List <Argomento> listaArgomentoConLacune= db.contaLacuneAttive(nomeStudente, esame.getNome());
-            int numeroLacune =listaArgomentoConLacune.size();
-            float rischioReale = numeroLacune * esame.getTassoMortalita(); // Es: 3 lacune * 0.8 mortalità = 2.4 rischio
-            if(rischioReale > 2.0f) { // Ora la soglia ha un senso statistico!
-                System.out.println("Attenzione, Hai " + numeroLacune + " lacune gravi su questo esame");
-                System.out.println("Più precisamente, tra le lacune abbiamo:");
-                for(Argomento arg:listaArgomentoConLacune){
-                    System.out.println("Argomento:" + arg.getNome());
-                }
-            } else {
-                System.out.println("Ottimo, Rischio calcolato a " + rischioReale + ". Puoi procedere.");
-            }            
-        }
-    }
+    
+    
       
     
-   
+    public void valutaRischio(Esame esame, DatabaseManager db, String nomeStudente) {
+    
+        // 1. FEEDBACK UI: Manteniamo i messaggi sui test dell'esame corrente
+        List<Test> listaTest = db.haTest(esame.getNome());
+        for(Test curr : listaTest) {
+            int esito = db.haSuperatoTest(nomeStudente, curr.getTitolo());
+            if(esito == 0) {
+                System.out.println("Non hai ancora affrontato il test di prova: " + curr.getTitolo());
+            } else if(esito >= curr.getSoglia_superamento()) {
+                System.out.println(" Ottimo, hai superato il test '" + curr.getTitolo() + "' con " + esito);
+            } else {
+                System.out.println(" Attenzione, il test '" + curr.getTitolo() + "' è andato male (Voto: " + esito + ", Soglia: " + curr.getSoglia_superamento() + ")");
+            }
+        }
+    
+        // 2. CORE LOGIC: Deleghiamo il calcolo del Rischio Predittivo (Pilastro B) a Neo4j
+        System.out.println("\n Calcolo del Rischio Predittivo basato sui Ponti Semantici...");
+        db.calcolaRischioAvanzato(this.nome, esame.getNome());
+    }
     
     public boolean possoFarlo(Esame esame,DatabaseManager db,String nomeStudente){
         if (esame.getPropedeutici() == null || esame.getPropedeutici().isEmpty()) {

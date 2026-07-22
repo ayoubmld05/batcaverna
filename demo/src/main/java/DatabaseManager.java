@@ -1,4 +1,5 @@
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -55,7 +56,7 @@ public class DatabaseManager implements AutoCloseable {
                 Record record = result.next();
                 String nomeTrovato = record.get("nomeDB").asString();
                 String cognomeTrovato = record.get("cognomeDB").asString();
-                return new Studente(nomeTrovato, cognomeTrovato);
+                return new Studente(nomeTrovato, cognomeTrovato);//manca da mettere la matricola
             }
         }
         return null;
@@ -219,33 +220,44 @@ public class DatabaseManager implements AutoCloseable {
                 System.err.println("Errore DB in creazioneTest: " + e.getMessage());
             }
         }
-        public double getMediaStudente(String nomeStudente){
-            int count=0;
-            double media=0;
-            try(Session session=driver.session()){
-                String query="MERGE (s:Studente{nome:$nomeStudente})-[a:HA_SUPERATO]->(e:Esame) RETURN a.voto AS votoEsame";
-                Result result=session.run(query, Values.parameters("nomeStudente", nomeStudente));
-                while(result.hasNext()){
-                    count++;
-                    Record record=result.next();
-                    media=record.get("votoEsame").asDouble();
+        public double getMediaStudente(String nomeStudente) {
+            int count = 0;
+            double sommaVoti = 0.0;
+            try (Session session = driver.session()) {
+                // toInteger() salva la situazione se il voto è stato salvato come stringa
+                String query = "MATCH (s:Studente{nome:$nomeStudente})-[a:HA_SUPERATO]->(e:Esame) RETURN toInteger(a.voto) AS votoEsame";
+                Result result = session.run(query, Values.parameters("nomeStudente", nomeStudente));
+                
+                while (result.hasNext()) {
+                    Record record = result.next();
+                    if (!record.get("votoEsame").isNull()) {
+                        sommaVoti += record.get("votoEsame").asDouble();
+                        count++;
+                    }
                 }
-            }catch(Exception e) {
-                System.err.println("Errore DB in creazioneTest: " + e.getMessage());
+            } catch (Exception e) {
+                // Ora il messaggio di errore è accurato
+                System.err.println("Errore DB in getMediaStudente: " + e.getMessage());
             }
-            return media/count;
+            // Evitiamo l'eccezione matematica di divisione per zero se non ci sono esami
+            return count == 0 ? 0.0 : sommaVoti / count;
         }
-        public int getCfuStudente(String nomeStudente){
-            int cfu=0;
-            try(Session session=driver.session()){
-                String query="MERGE (s:Studente{nome:$nomeStudente})-[HA_SUPERATO]->(e:Esame) RETURN e.cfu as cfuEsame";
-                Result result=session.run(query,Values.parameters("nomeStudente",nomeStudente));
-                while(result.hasNext()){
-                    Record record=result.next();
-                    cfu+=record.get("cfuEsame").asInt();
+        public int getCfuStudente(String nomeStudente) {
+            int cfu = 0;
+            try (Session session = driver.session()) {
+                // Aggiunti i DUE PUNTI prima di HA_SUPERATO e toInteger() sul cfu
+                String query = "MATCH (s:Studente{nome:$nomeStudente})-[:HA_SUPERATO]->(e:Esame) RETURN toInteger(e.cfu) as cfuEsame";
+                Result result = session.run(query, Values.parameters("nomeStudente", nomeStudente));
+                
+                while (result.hasNext()) {
+                    Record record = result.next();
+                    if (!record.get("cfuEsame").isNull()) {
+                        cfu += record.get("cfuEsame").asInt();
+                    }
                 }
-            }catch(Exception e) {
-                System.err.println("Errore DB in creazioneTest: " + e.getMessage());
+            } catch (Exception e) {
+                // Ora il messaggio di errore è accurato
+                System.err.println("Errore DB in getCfuStudente: " + e.getMessage());
             }
             return cfu;
         }
@@ -253,7 +265,7 @@ public class DatabaseManager implements AutoCloseable {
         public List <Esame> getListaEsamiNonSuperati(String nomeStudente){
             List <Esame> lista=new ArrayList<>();
             try(Session session=driver.session()){
-                String query="MERGE (s:Studente{nome:$nomeStudente}) -[v:HA_FALLITO]->(e:Esame) WHERE v.voto<18 RETURN e.nome AS nEsame, e.descrizione AS dEsame, e.tasso_mortalita AS tEsame, e.cfu AS cEsame, v.voto AS vEsame ";
+                String query="MATCH (s:Studente{nome:$nomeStudente}) -[v:HA_FALLITO]->(e:Esame) WHERE v.voto<18 RETURN e.nome AS nEsame, e.descrizione AS dEsame, e.tasso_mortalita AS tEsame, e.cfu AS cEsame, v.voto AS vEsame ";
                 Result result=session.run(query,Values.parameters("nomeStudente",nomeStudente));
                 while(result.hasNext()){
                     Record record=result.next();
@@ -271,6 +283,135 @@ public class DatabaseManager implements AutoCloseable {
             return lista;
         }
         
-        
+        //devo andare a fare le ultime query
+        public List<Consiglio> getListaConsigli(String nomeStudente) {
+            List<Consiglio> lista = new ArrayList<>();
+            try (Session session = driver.session()) {
+                // Naviga dal nodo Studente fino al Consiglio, ordinandoli dal più recente
+                String query = "MATCH (s:Studente {nome:$nomeStudente})-[:HA_EFFETTUATO]->(i:Interazione)-[:HA_GENERATO]->(c:Consiglio) " +
+                               "RETURN c.idInterazione AS id, c.timestamp AS time, c.testoGenerato AS testo, c.categoriaAzione AS categoria " +
+                               "ORDER BY c.timestamp DESC LIMIT 5";
+                               
+                Result result = session.run(query, Values.parameters("nomeStudente", nomeStudente));
+                
+                while (result.hasNext()) {
+                    Record record = result.next();
+                    String id = record.get("id").asString();
+                    long timestamp = record.get("time").asLong();
+                    String testo = record.get("testo").asString();
+                    String categoria = record.get("categoria").asString();
+                    
+                    Consiglio consiglio = new Consiglio(id, timestamp, testo, categoria);
+                    lista.add(consiglio);
+                }
+            } catch (Exception e) {
+                System.err.println("Errore DB recupero consigli: " + e.getMessage());
+            }
+            return lista;
         }
+        // File: DatabaseManager.java (Aggiungi questo metodo prima della chiusura dell'ultima parentesi graffa)
+
+public void salvaNuovoConsiglio(String nomeStudente, String testoConsiglio) {
+    try (Session session = driver.session()) {
+        // Creiamo il nodo e lo colleghiamo allo studente in una singola query atomica (Altamente Efficace)
+        String query = 
+            "MATCH (s:Studente {nome: $nomeStudente}) " +
+            "CREATE (c:Interazione:Consiglio { " +
+            "   idInterazione: randomUUID(), " +
+            "   timestamp: timestamp(), " +
+            "   testoGenerato: $testo, " +
+            "   categoriaAzione: 'SALUTO_PROATTIVO', " +
+            "   statoEsecuzione: 'COMPLETED' " +
+            "}) " +
+            "CREATE (s)-[:HA_EFFETTUATO]->(c)";
+            
+        session.run(query, Values.parameters(
+            "nomeStudente", nomeStudente,
+            "testo", testoConsiglio
+        ));
+    } catch (Exception e) {
+        System.err.println("Errore durante il salvataggio della memoria di Alfred: " + e.getMessage());
+    }
+}
+public void calcolaRischioAvanzato(String nomeStudente, String nomeEsame) {
+    String query = 
+        "MATCH (s:Studente {nome: $nomeStudente}) " +
+        "MATCH (e:Esame {nome: $nomeEsame}) " +
+        "OPTIONAL MATCH (s)-[:HA_LACUNA_IN]->(a:Argomento)<-[:CONTIENE_ARGOMENTO]-(e) " +
+        "WITH e, count(a) AS numeroLacune, collect(a.nome) AS argomentiLacunosi " +
+        "WITH e.nome AS nomeEsame, numeroLacune, argomentiLacunosi, e.tasso_mortalita AS mortalita, " +
+        "(numeroLacune * e.tasso_mortalita) AS rischioCalcolato " +
+        "RETURN nomeEsame, numeroLacune, argomentiLacunosi, mortalita, rischioCalcolato";
+
+    try (Session session = driver.session()) {
+        Result result = session.run(query, Values.parameters(
+            "nomeStudente", nomeStudente, 
+            "nomeEsame", nomeEsame
+        ));
+
+        if (result.hasNext()) {
+            Record record = result.next();
+            int numeroLacune = record.get("numeroLacune").asInt();
+            float rischio = record.get("rischioCalcolato").asFloat();
+            List<Object> argomenti = record.get("argomentiLacunosi").asList();
+
+            System.out.println("--- REPORT DI RISCHIO PREDITTIVO ---");
+            if (rischio > 2.0f) {
+                System.out.println("⚠️ ALLARME RISCHIO ACCADEMICO ⚠️");
+                System.out.println("Rischio calcolato: " + rischio + " (Soglia superata)");
+                System.out.println("Trovate " + numeroLacune + " lacune critiche sugli argomenti:");
+                for (Object arg : argomenti) {
+                    System.out.println(" - " + arg.toString());
+                }
+            } else {
+                System.out.println("✅ Rischio calcolato: " + rischio + ". Nessuna lacuna bloccante. Puoi procedere.");
+            }
+        }
+    } catch (Exception e) {
+        System.err.println("Errore durante il calcolo topologico del rischio: " + e.getMessage());
+    }
+}    
+public void caricaAppunti(String matricola, String nomeAppunto,String id_appunto,LocalDate data, boolean verificato){
+    try(Session session=driver.session()){
+       String query="MATCH (s:Studente {matricola: $matricolaStudente})\n" +
+                      "CREATE (s)-[:HA_CARICATO]->(ap:Appunto {\n" + 
+                      "    id_appunto: $idAppunto, \n" + //
+                      "    titolo: $titoloAppunto, \n" + //
+                      "    data_caricamento: $dataCaricamento\n" + //
+                      " verificato:$Verificato "+
+                      "})\n" + //
+                      "";
+                      session.run(query,Values.parameters("matricolaStudente",matricola ,"id_appunto",id_appunto,"dataCaricamento",data, "Verificato",verificato));
+    }catch (Exception e) {
+        System.err.println("Errore durante il salvataggio della memoria di Alfred: " + e.getMessage());
+    }
+}
+
+//chiamata solo se il flag dello studente è true
+public List<Esame> getPianoDiStudi(String matricola){
+    List<Esame> pianoCarriera = new ArrayList<>();
+    String query="MATCH (s:Studente{matricola:$matricola })-[:HA_IN_PIANO]->(e:Esame) "+
+    "RETURN e.nome AS nomeEsame, e.cfu AS cfu, e.tasso_mortalita AS mortalita, e.voto AS voto";
+    try(Session session=driver.session()){
+        Result result=session.run(query,Values.parameters("matricola",matricola));
+        while(result.hasNext()){
+            Record record=result.next();
+            String nome=record.get("nomeEsame").asString();
+            int cfu=record.get("cfu").asInt();
+            float tasso=record.get("mortalità").asFloat();
+            int voto=record.get("voto").asInt();
+            boolean sup=false;
+            if(voto>=18){
+                sup=true;
+            }
+            Esame e=new Esame(nome, cfu, voto, sup, tasso);
+            pianoCarriera.add(e);
+        }
+    }catch(Exception e){
+        System.err.println("Errore durante la presa del piano di studi: " + e.getMessage());
+    }
+    return pianoCarriera;
+}
+
+}
 
