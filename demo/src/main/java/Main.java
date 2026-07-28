@@ -31,20 +31,16 @@ public class Main {
             String nome = scanner.nextLine();
             System.out.print("Cognome: "); 
             String cognome = scanner.nextLine();
+            System.out.print("Matricola: "); 
+            String matricola = scanner.nextLine();
            
-            Studente utenteLoggato = db.login_Studente(nome, cognome);
+            Studente utenteLoggato = db.login_Studente(matricola,nome, cognome);
 
             if(utenteLoggato != null) {
                 System.out.println("\n[SISTEMA] Autenticazione riuscita. Sincronizzazione memoria dell'Agente...");
                 List<Esame> pianoStudi=db.getPianoDiStudi(utenteLoggato.getMatricola());
                 if(pianoStudi.isEmpty()){
                     System.out.println("Non hai ancora caricato il tuo piano di studi, rimedia subito");
-                }else{
-                    StringBuilder promptConsiglio = new StringBuilder();
-                    promptConsiglio.append("Sei Alfred, un Tutor accademico esperto. Analizza questo piano di studi e consiglia i prossimi 2 esami da preparare, spiegando la strategia (es. liberare propedeuticità, bilanciare CFU alti/bassi).\n");
-                    promptConsiglio.append("--- PIANO DI STUDI DELLO STUDENTE ---\n");
-                    
-                }
                     System.out.print("Ricordati di inserire il tuo piano di studi, dai non perdere tempo, fallo adesso");
                          // Crea il selettore di file
                 JFileChooser fileChooser = new JFileChooser();
@@ -63,13 +59,99 @@ public class Main {
                     System.out.println("Hai scelto il file: " + fileSelezionato.getAbsolutePath());
                     
                     // Da qui puoi passare "fileSelezionato" ai metodi visti prima (per aprirlo o leggerlo)
+                     try (PDDocument documento = Loader.loadPDF(fileSelezionato)) {
+                            System.out.println("📖 Lettura del Regolamento Didattico in corso...");
+                            PDFTextStripper estrattore = new PDFTextStripper();
+                            String testoEstratto = estrattore.getText(documento);
+                            if(testoEstratto.length() > 6000) testoEstratto = testoEstratto.substring(0, 6000);
+                            String testoPulito = testoEstratto.replace("\n", " ").replace("\r", " ").replace("\t", " ");
+
+                            String promptPiano = "Sei un estrattore dati universitario. Leggi il seguente testo tratto da un manifesto degli studi:\n" +
+                            "--- INIZIO ---\n" + testoPulito + "\n--- FINE ---\n" +
+                            "Trova tutti gli esami, i CFU, e le propedeuticità indicate.\n" +
+                            "DEVI rispondere ESCLUSIVAMENTE con un JSON strutturato così, senza nient'altro:\n" +
+                            "{\n  \"piano_di_studi\": [\n    { \"nome_esame\": \"Nome Esame\", \"cfu\": 9, \"esami_propedeutici\": [\"Nome Esame Bloccante\"] }\n  ]\n}";
+
+                            Gson gsonPiano = new Gson();
+                            java.util.Map<String, Object> reqMapPiano = java.util.Map.of("contents", java.util.List.of(java.util.Map.of("parts", java.util.List.of(java.util.Map.of("text", promptPiano)))));
+                            
+                            System.out.println("🤖 Alfred sta analizzando le propedeuticità...");
+                            String urlPiano = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + "la_mia_chiave";
+                            HttpClient client = HttpClient.newHttpClient();
+                            HttpRequest request = HttpRequest.newBuilder().uri(URI.create(urlPiano)).header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(gsonPiano.toJson(reqMapPiano))).build();
+                            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+                            
+                            if (response.statusCode() == 200) {
+                                JsonObject jsonResponse = gsonPiano.fromJson(response.body(), JsonObject.class);
+                                String jsonInterno = jsonResponse.getAsJsonArray("candidates").get(0).getAsJsonObject().getAsJsonObject("content").getAsJsonArray("parts").get(0).getAsJsonObject().get("text").getAsString().replace("```json", "").replace("```", "").trim();
+                                
+                                RispostaPianoStudi datiPiano = gsonPiano.fromJson(jsonInterno, RispostaPianoStudi.class);
+                                System.out.println("💾 Costruzione topologia Grafo in corso...");
+                                // *** DEVI AVER CREATO QUESTO METODO NEL DB MANAGER ***
+                                db.salvaPianoDiStudi(utenteLoggato.getMatricola(), datiPiano); 
+                                
+                                // Aggiorniamo la lista del piano studi appena caricata
+                                pianoStudi = db.getPianoDiStudi(utenteLoggato.getMatricola());
+                            } else {
+                                System.out.println("❌ Errore API durante il caricamento del piano: " + response.statusCode());
+                            }
+                        } catch (Exception e) {
+                            System.out.println("❌ Errore elaborazione PDF Regolamento: " + e.getMessage());
+                        }
                     
                 } else {
                     System.out.println("Selezione annullata dall'utente.");
                 }
-                //ADESSO DOVREI PRENDERE QUESTO FILE...COME FACCIO A MANDARLO A GEMINI??
-                }
-                }
+                }else{
+                    StringBuilder promptConsiglio = new StringBuilder();
+                    promptConsiglio.append("Sei Alfred, un Tutor accademico esperto. Analizza questo piano di studi e consiglia il miglior percorso che lo studente può intraprendere, spiegando la strategia (es. liberare propedeuticità, bilanciare CFU alti/bassi).\n");    
+                    promptConsiglio.append("--- PIANO DI STUDI DELLO STUDENTE ---\n");
+                    String carriera=db.getConsiglio(utenteLoggato.getMatricola());
+                    promptConsiglio.append(carriera);
+                    
+                    //GSON
+                    Gson gsonConsiglio=new Gson();
+                    java.util.Map<String, Object> reqMapConsiglio = java.util.Map.of(
+                        "contents", java.util.List.of(
+                            java.util.Map.of("parts", java.util.List.of(
+                                java.util.Map.of("text", promptConsiglio.toString())
+                            ))
+                        )
+                    );
+                    //spedisco a gemini
+                    try{
+                        String apiGemini="AQ.Ab8RN6I68n6-3Luk5V6oZ-eCTbYKTF8i_r0ly4EwLe5KMbniKAS";
+                        String urlConsiglio = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiGemini;
+                        HttpClient client=HttpClient.newHttpClient();
+                        HttpRequest request=HttpRequest.newBuilder().uri(URI.create(urlConsiglio)).header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(gsonConsiglio.toJson(reqMapConsiglio)))
+                        .build();
+                        System.out.println("Alfred sta esaminando il miglior percorso");
+                        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+                        if (response.statusCode() == 200) {
+                            // 4. LEGGHIAMO LA RISPOSTA
+                            JsonObject jsonResponse = gsonConsiglio.fromJson(response.body(), JsonObject.class);
+                            String rispostaAlfred = jsonResponse.getAsJsonArray("candidates")
+                                    .get(0).getAsJsonObject()
+                                    .getAsJsonObject("content")
+                                    .getAsJsonArray("parts")
+                                    .get(0).getAsJsonObject()
+                                    .get("text").getAsString().trim();
+
+                            // 5. MOSTRA IL CAPOLAVORO!
+                            System.out.println("\n--- 🧠 IL PERCORSO MIGLIORE SECONDO ALFRED ---\n");
+                            System.out.println(rispostaAlfred);
+                            
+                            // (Opzionale: salvi il consiglio nel Grafo come "Memoria")
+                            db.salvaNuovoConsiglio(utenteLoggato.getNome(), rispostaAlfred);
+                            
+                        } else {
+                             System.out.println("❌ Errore API: " + response.statusCode());
+                        }
+                    } catch (Exception ex) {
+                        System.err.println("Errore di rete durante la consultazione di Alfred: " + ex.getMessage());
+                    }
+                    }
+                
                 // --- INIZIO: RISVEGLIO DI ALFRED ---
                 double media = db.getMediaStudente(utenteLoggato.getNome());
                 int cfu = db.getCfuStudente(utenteLoggato.getNome());
@@ -101,7 +183,6 @@ public class Main {
                 String requestBodyAlfred = gsonAlfred.toJson(reqMapAlfred);
 
                 try {
-                    // ATTENZIONE: INSERISCI QUI LA TUA NUOVA CHIAVE API ATTIVA
                     String apiGemini = "AQ.Ab8RN6I68n6-3Luk5V6oZ-eCTbYKTF8i_r0ly4EwLe5KMbniKAS"; 
                     
                     String urlAlfred = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiGemini;
@@ -197,7 +278,6 @@ public class Main {
                             );
                             String requestBodyJSON = gsonPipeline.toJson(requestMap);
                             
-                            // ATTENZIONE: INSERISCI QUI LA TUA NUOVA CHIAVE API ATTIVA
                             String apiGemini = "AQ.Ab8RN6I68n6-3Luk5V6oZ-eCTbYKTF8i_r0ly4EwLe5KMbniKAS";
                             
                             // MODELLO CORRETTO (1.5-flash, il 2.5 non esiste)

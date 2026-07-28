@@ -1,13 +1,17 @@
+import java.util.List;
+
 public class RispostaPianoStudi {
-    private List<EsameEstrato> listaEsami; 
-    private int id;
-    public List<EsameEstrato>  getListaEsami(){
-        return this.listaEsami;
+    // Deve corrispondere alla chiave JSON "piano_di_studi"
+    private List<EsameEstratto> piano_di_studi; 
+    private String id; 
+
+    public List<EsameEstratto> getPianoDiStudi(){
+        return this.piano_di_studi;
     }
-    public int getId() {
+    public String getId() {
         return id;
     }
-    public void addEsame(EsameEstratto esame){
-        this.listaEsami.add(esame);
+    public void setId(String id) {
+        this.id = id;
     }
 }

@@ -47,16 +47,17 @@ public class DatabaseManager implements AutoCloseable {
             }
         }
     }
-    public Studente login_Studente(String nomeCercato, String cognomeCercato){
+    public Studente login_Studente(String matricola,String nomeCercato, String cognomeCercato){
         //per aprire la porta di Noe4j faccio
         try (Session session = driver.session()) {
-            String query = "MATCH (s:Studente {nome: $nome, cognome: $cognome}) RETURN s.nome AS nomeDB, s.cognome AS cognomeDB";
-            Result result = session.run(query, Values.parameters("nome", nomeCercato, "cognome", cognomeCercato));
+            String query = "MATCH (s:Studente {matricola:$matricola, nome: $nome, cognome: $cognome}) RETURN s.nome AS nomeDB, s.cognome AS cognomeDB";
+            Result result = session.run(query, Values.parameters("nome", nomeCercato, "cognome", cognomeCercato,"matricola", matricola));
             if (result.hasNext()) {
                 Record record = result.next();
                 String nomeTrovato = record.get("nomeDB").asString();
                 String cognomeTrovato = record.get("cognomeDB").asString();
-                return new Studente(nomeTrovato, cognomeTrovato);//manca da mettere la matricola
+                String matricolaTrovata=record.get("matricola").asString();
+                return new Studente(matricolaTrovata,nomeTrovato, cognomeTrovato);//manca da mettere la matricola
             }
         }
         return null;
@@ -388,30 +389,122 @@ public void caricaAppunti(String matricola, String nomeAppunto,String id_appunto
 }
 
 //chiamata solo se il flag dello studente è true
-public List<Esame> getPianoDiStudi(String matricola){
+public List<Esame> getPianoDiStudi(String matricola) {
     List<Esame> pianoCarriera = new ArrayList<>();
-    String query="MATCH (s:Studente{matricola:$matricola })-[:HA_IN_PIANO]->(e:Esame) "+
-    "RETURN e.nome AS nomeEsame, e.cfu AS cfu, e.tasso_mortalita AS mortalita, e.voto AS voto";
-    try(Session session=driver.session()){
-        Result result=session.run(query,Values.parameters("matricola",matricola));
-        while(result.hasNext()){
-            Record record=result.next();
-            String nome=record.get("nomeEsame").asString();
-            int cfu=record.get("cfu").asInt();
-            float tasso=record.get("mortalità").asFloat();
-            int voto=record.get("voto").asInt();
-            boolean sup=false;
-            if(voto>=18){
-                sup=true;
-            }
-            Esame e=new Esame(nome, cfu, voto, sup, tasso);
-            pianoCarriera.add(e);
+    // NUOVA QUERY: Passiamo attraverso il nodo PianoCarriera
+    String query = "MATCH (s:Studente{matricola:$matricola})-[:POSSIEDE]->(p:PianoCarriera)-[:CONTIENE_ESAME]->(e:Esame) " +
+                   "RETURN e.nome AS nomeEsame, e.cfu AS cfu, e.tasso_mortalita AS mortalita, e.voto AS voto";
+    try (Session session = driver.session()) {
+        Result result = session.run(query, Values.parameters("matricola", matricola));
+        // ... (il resto del metodo rimane uguale)
+        while (result.hasNext()) {
+             Record record = result.next();
+             String nome = record.get("nomeEsame").asString();
+             int cfu = record.get("cfu").asInt();
+             // CORREZIONE: Usa .isNull() per evitare eccezioni
+             float tasso = record.get("mortalita").isNull() ? 0.0f : record.get("mortalita").asFloat();
+             int voto = record.get("voto").isNull() ? 0 : record.get("voto").asInt();
+             boolean sup = voto >= 18;
+             Esame e = new Esame(nome, cfu, voto, sup, tasso);
+             pianoCarriera.add(e);
         }
-    }catch(Exception e){
+    } catch (Exception e) {
         System.err.println("Errore durante la presa del piano di studi: " + e.getMessage());
     }
     return pianoCarriera;
 }
+//Prendo tutte le informazioni per costruire il consiglio 
+public String getConsiglio(String matricola){
+    StringBuilder situazione=new StringBuilder();
+    String query = "MATCH (s:Studente{matricola:$matricola})-[:POSSIEDE]->(p:PianoCarriera)-[:CONTIENE_ESAME]->(e:Esame) " +   //con OPTIONAL controllo se è esiste questa relazione per esame (e)
+    "OPTIONAL MATCH (s)-[sup:HA_SUPERATO]->(e) " +
+    "OPTIONAL MATCH (s)-[fal:HA_FALLITO]->(e) " +
+    "OPTIONAL MATCH (e)-[:RICHIEDE_PROPEDEUTICITA]->(futuro:Esame)<-[:HA_IN_PIANO]-(s) "+
+    "OPTIONAL MATCH (s)-[:HA_IN_PIANO]->(req:Esame)-[:RICHIEDE_PROPEDEUTICITA]->(e) "+
+    "RETURN e.nome AS nomeEsame,e.voto AS voto, e.cfu AS cfu, e.tasso_mortalita AS mortalità " +
+    "sup.voto AS votoSup, fal.voto AS votoFal,  "+
+    "CASE "+
+    "WHEN sup IS NOT NULL THEN 'superato' "+
+    "WHEN fal IS NOT NULL THEN 'fallito' "+
+    "ELSE "+
+    "'mai dato' "+
+    "END AS stato_esame "+
+    "collect(DISTINCT req.nome) AS propedeutici_richiesti " +
+    "collect(DISTINCT futuro.nome) AS esami_sblocca ";
+    try(Session session=driver.session()){
+        Result result=session.run(query,Values.parameters("matricola", matricola));
+        while(result.hasNext()){
+            //qui però, non mi limito a caricare soltando l'esame, come ad esempio in getPianoDiStudi, 
+            // vado più a fondo, estraggo tutte le informazioni dalla query
+            Record record=result.next();
+            String nome=record.get("nomeEsame").asString();
+            String stato=record.get("statoEsame").asString();
+            List<Object> requisiti=record.get("propedeutici_richiesti").asList();
+            List<Object> sblocca=record.get("esami_sblocca").asList();
+            //scrivo il paragrafo per questo esame
+            situazione.append("- ESAME: ").append(nome).append("\n");
+            situazione.append("Stato: ").append(stato).append("\n");
+            if(stato.equals("superato")){
+                int voto=record.get("votoSup").asInt();
+                situazione.append(" Voto preso :").append(voto).append("\n");
+                situazione.append(" Sblocca i seguenti esami:").append(sblocca).append("\n");
+            }else if(stato.equals("fallito")){
+                int voto = record.get("votoFal").asInt();
+                situazione.append("  Ultimo voto (Insufficiente): ").append(voto).append("\n");
+                situazione.append("L'esame richiede le sequenti propedeuticità").append(requisiti).append("\n");
+            }else{
+                //non è mai stato dato
+                situazione.append(" Prima deve dare ").append(requisiti).append("\n");
+            }
+            situazione.append("\n");
+        }
+    }catch(Exception e) {
+        System.err.println("Errore estrazione carriera: " + e.getMessage());
+    }
+    return situazione.toString();
+}
 
+public void salvaPianoDiStudi(String matricola, RispostaPianoStudi datiPiano) {
+    if (datiPiano == null || datiPiano.getPianoDiStudi() == null) return;
+
+    // 1. Crea il PianoCarriera
+    String queryPiano = "MATCH (s:Studente {matricola: $matricola}) " +
+                        "MERGE (p:PianoCarriera {anno: date().year}) " +
+                        "SET p.stato = 'Approvato' " +
+                        "MERGE (s)-[:POSSIEDE]->(p)";
+                        
+    try (Session session = driver.session()) {
+        session.run(queryPiano, Values.parameters("matricola", matricola));
+        
+        for (EsameEstratto esame : datiPiano.getPianoDiStudi()) {
+            // 2. Crea l'esame e collegalo
+            String queryEsame = "MATCH (s:Studente {matricola: $matricola})-[:POSSIEDE]->(p:PianoCarriera) " +
+                                "MERGE (e:Esame {nome: $nome}) " +
+                                "SET e.cfu = $cfu " +
+                                "MERGE (p)-[:CONTIENE_ESAME]->(e)";
+            session.run(queryEsame, Values.parameters(
+                "matricola", matricola, 
+                "nome", esame.getNomeEsame(), 
+                "cfu", esame.getCfu()
+            ));
+            
+            // 3. Gestisci i propedeutici
+            if (esame.getEsamiPropedeutici() != null) {
+                for (String nomeProp : esame.getEsamiPropedeutici()) {
+                    String queryProp = "MERGE (prop:Esame {nome: $nomeProp}) " + 
+                                       "MATCH (e:Esame {nome: $nomeEsame}) " +
+                                       "MERGE (prop)-[:RICHIEDE_PROPEDEUTICITA]->(e)";
+                    session.run(queryProp, Values.parameters(
+                        "nomeProp", nomeProp,
+                        "nomeEsame", esame.getNomeEsame()
+                    ));
+                }
+            }
+        }
+        System.out.println("✅ Piano di Studi registrato correttamente nel Grafo!");
+    } catch (Exception e) {
+        System.err.println("Errore DB in salvaPianoDiStudi: " + e.getMessage());
+    }
+}
 }
 
