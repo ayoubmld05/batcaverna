@@ -1,0 +1,22 @@
+# Cartelle di compilazione e output
+bin/
+out/
+build/
+target/
+*.class
+
+# File di configurazione e chiavi segrete (FONDAMENTALE)
+config.properties
+.env
+*.pem
+*.key
+
+# File di sistema operativo (Mac/Windows)
+.DS_Store
+Thumbs.db
+
+# Cartelle degli IDE (Eclipse, IntelliJ, VSCode)
+.vscode/
+.idea/
+*.iml
+*.eclipse
